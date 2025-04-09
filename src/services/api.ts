@@ -47,15 +47,15 @@ export const fetchAnswer = async (
           if (content === "<newline>") {
             onDataChunk({ text: "\n", type: "newline" });
           } else if (content === "<end_of_english>") {
-            // End of English section
+            // Handle end of English section - we just ignore this marker
+            continue;
           } else if (content === "<end_of_hindi_devanagari>") {
-            // End of Hindi section
+            // Handle end of Hindi section - we just ignore this marker
+            continue;
           } else {
-            let currentText = content;
-            
             // Process as normal text with potential LaTeX
             onDataChunk({
-              text: currentText,
+              text: content,
               type: content.includes("$") ? "latex" : 
                     content.match(/[\u0900-\u097F]/) ? "hindi" : "english"
             });
