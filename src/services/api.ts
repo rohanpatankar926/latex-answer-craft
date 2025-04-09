@@ -47,11 +47,11 @@ export const fetchAnswer = async (
           if (content === "<newline>") {
             onDataChunk({ text: "\n", type: "newline" });
           } else if (content === "<end_of_english>") {
-            // Handle end of English section - we just ignore this marker
-            continue;
+            // Add three newlines after English section ends
+            onDataChunk({ text: "\n\n\n", type: "newline" });
           } else if (content === "<end_of_hindi_devanagari>") {
-            // Handle end of Hindi section - we just ignore this marker
-            continue;
+            // Add a newline after Hindi section ends
+            onDataChunk({ text: "\n", type: "newline" });
           } else {
             // Process as normal text with potential LaTeX
             onDataChunk({
