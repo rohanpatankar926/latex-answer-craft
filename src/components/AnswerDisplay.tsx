@@ -9,20 +9,45 @@ interface AnswerDisplayProps {
 }
 
 const AnswerDisplay: React.FC<AnswerDisplayProps> = ({ answerChunks, isLoading }) => {
-  // Process the chunks to handle newlines and LaTeX correctly
+  // Helper function to process plain text with our custom tokens.
+  const processPlainText = (text: string) => {
+    // Split by tokens: <newline>, <end_of_english>, <end_of_hindi_devanagari>
+    const parts = text.split(/(<newline>|<end_of_english>|<end_of_hindi_devanagari>)/g);
+    return parts.map((part, i) => {
+      if (part === '<newline>') {
+        return <br key={`br-${i}`} />;
+      } else if (part === '<end_of_english>' || part === '<end_of_hindi_devanagari>') {
+        // Instead of three <br /> elements, we use an empty <p> with vertical margin to add spacing.
+        return <p key={`spacer-${i}`} className="my-6" />;
+      }
+      // Return normal text.
+      return part;
+    });
+  };
+
   const processedContent = React.useMemo(() => {
     return answerChunks.map((chunk, index) => {
       if (chunk.type === 'newline') {
         return <br key={index} />;
       }
-      
-      // Check if content contains LaTeX (enclosed in $ symbols)
+
+      // If the content contains LaTeX markers, clean the text and pass it to LatexRenderer.
       if (chunk.text.includes('$')) {
-        return <LatexRenderer key={index} content={chunk.text} />;
+        // Replace custom tokens with newline characters.
+        // Make sure your LatexRenderer is set up to support newlines.
+        const cleanedText = chunk.text
+          .replace(/<newline>/g, "\n")
+          .replace(/<end_of_english>/g, "\n\n\n")
+          .replace(/<end_of_hindi_devanagari>/g, "\n\n\n");
+        return <LatexRenderer key={index} content={cleanedText} />;
       }
-      
-      // Otherwise, return plain text
-      return <span key={index} className={chunk.type === 'hindi' ? 'font-hindi' : ''}>{chunk.text}</span>;
+
+      // Otherwise, for plain text, process token replacements as React elements.
+      return (
+        <span key={index} className={chunk.type === 'hindi' ? 'font-hindi' : ''}>
+          {processPlainText(chunk.text)}
+        </span>
+      );
     });
   }, [answerChunks]);
 
@@ -35,7 +60,8 @@ const AnswerDisplay: React.FC<AnswerDisplayProps> = ({ answerChunks, isLoading }
             <p className="mt-4 text-blue-600">Generating answer...</p>
           </div>
         ) : answerChunks.length > 0 ? (
-          <div className="prose prose-blue max-w-none">
+          // Adding whitespace-pre-line to ensure that newline characters in LatexRenderer output are respected.
+          <div className="prose prose-blue max-w-none whitespace-pre-line">
             {processedContent}
           </div>
         ) : (
