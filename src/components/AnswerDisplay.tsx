@@ -46,26 +46,21 @@ const extractLanguageAndCode = (rawCode: string) => {
   const trimmed = rawCode.trimStart();
   const lines = trimmed.split('\n');
   let language: string | undefined;
-  // If the first line contains only letters, digits, dashes, or plus signs (1–20 chars),
-  // treat it as the language.
+  // If first line is a language identifier (e.g., "python")
   if (lines.length > 0 && /^[a-zA-Z0-9\-\+]{1,20}$/.test(lines[0].trim())) {
     language = lines[0].trim();
     lines.shift();
   }
-  // Replace <newline> tokens with actual newlines in the remaining code.
+  // Replace <newline> tokens with actual newline characters
   const code = lines.join('\n').replace(/<newline>/g, "\n");
   return { language, code };
 };
 
 const AnswerDisplay: React.FC<AnswerDisplayProps> = ({ answerChunks, isLoading }) => {
   const processPlainText = (text: string) => {
-    const parts = text.split(/(<newline>)/g);
-    return parts.map((part, i) => {
-      if (part === '<newline>') {
-        return <br key={`br-${i}`} />;
-      }
-      return part;
-    });
+    return text.split(/(<newline>)/g).map((part, i) =>
+      part === '<newline>' ? <br key={i} /> : part
+    );
   };
 
   const renderWithCodeBlock = (text: string) => {
@@ -80,30 +75,23 @@ const AnswerDisplay: React.FC<AnswerDisplayProps> = ({ answerChunks, isLoading }
   };
 
   const renderContent = (text: string) => {
-    // If the text has triple backticks, treat it as a fenced code block
     if (text.includes('```')) {
       return renderWithCodeBlock(text);
-    }
-    // If the text has LaTeX symbols, pass it to LatexRenderer
-    if (text.includes('$')) {
-      const cleanedText = text
-        .replace(/<newline>/g, "\n")
-        .replace(/<end_of_english>/g, "\n\n\n")
-        .replace(/<end_of_hindi_devanagari>/g, "\n\n\n");
+    } else if (text.includes('$')) {
+      const cleanedText = text.replace(/<newline>/g, "\n");
       return <LatexRenderer content={cleanedText} />;
+    } else {
+      const trimmedText = text.trim();
+      const isCode = trimmedText.startsWith("def ") ||
+                     trimmedText.startsWith("import ") ||
+                     trimmedText.startsWith("print(") ||
+                     trimmedText.startsWith("class ");
+      if (isCode) {
+        const { language, code } = extractLanguageAndCode(trimmedText);
+        return <CodeBlock key="single-code" language={language} code={code} />;
+      }
+      return <span>{processPlainText(text)}</span>;
     }
-    // If the text looks like single-line code, handle it similarly
-    const trimmedText = text.trim();
-    const isCode = trimmedText.startsWith("def ") ||
-                   trimmedText.startsWith("import ") ||
-                   trimmedText.startsWith("print(") ||
-                   trimmedText.startsWith("class ");
-    if (isCode) {
-      const { language, code } = extractLanguageAndCode(text);
-      return <CodeBlock key="single-code" language={language} code={code} />;
-    }
-    // Otherwise, render as regular text
-    return <span>{processPlainText(text)}</span>;
   };
 
   if (isLoading) {
@@ -129,18 +117,49 @@ const AnswerDisplay: React.FC<AnswerDisplayProps> = ({ answerChunks, isLoading }
     );
   }
 
-  // Combine all chunks
-  const fullText = answerChunks.map(chunk => chunk.text).join('');
-  // Split for English / Hindi
-  const englishSplit = fullText.split('<end_of_english>');
-  const englishPart = englishSplit[0] || '';
-  const remainder = englishSplit[1] || '';
-  const hindiSplit = remainder.split('<end_of_hindi_devanagari>');
-  const hindiPart = hindiSplit[0] || '';
+  // 1. Combine text from all chunks
+  let rawFullText = answerChunks.map(chunk => chunk.text).join('');
+  console.log("Raw Full Text:", rawFullText);
+
+  // 2. Remove unwanted tokens
+  const cleanFullText = rawFullText
+    .replace(/^\s*data:\s*/gm, '')
+    .replace(/CLOSE_CONNECTION/gi, '')
+    .trim();
+  console.log("Clean Full Text:", cleanFullText);
+
+  // 3. Split on <end_of_english>
+  const [englishPartRaw, afterEnglishRaw] = cleanFullText.split("<end_of_english>");
+  const englishPart = englishPartRaw ? englishPartRaw.trim() : "";
+  console.log("English Part:", englishPart);
+
+  let hindiDevanagariPart = "";
+  let hindiRomanPart = "";
+  if (afterEnglishRaw) {
+    console.log("Text after <end_of_english>:", afterEnglishRaw);
+    if (afterEnglishRaw.indexOf('<end_of_hindi_devanagari>') !== -1) {
+      const [devanRaw, afterDevanRaw] = afterEnglishRaw.split("<end_of_hindi_devanagari>");
+      hindiDevanagariPart = devanRaw ? devanRaw.trim() : "";
+      console.log("Hindi (Devanagari) Part:", hindiDevanagariPart);
+
+      if (afterDevanRaw && afterDevanRaw.indexOf('<end_of_hindi_roman>') !== -1) {
+        const [romanRaw] = afterDevanRaw.split("<end_of_hindi_roman>");
+        hindiRomanPart = romanRaw ? romanRaw.trim() : "";
+      }
+    } else if (afterEnglishRaw.indexOf('<end_of_hindi_roman>') !== -1) {
+      const [devanRaw, romanRaw] = afterEnglishRaw.split("<end_of_hindi_roman>");
+      hindiDevanagariPart = devanRaw ? devanRaw.trim() : "";
+      hindiRomanPart = romanRaw ? romanRaw.trim() : "";
+    } else {
+      hindiDevanagariPart = afterEnglishRaw.trim();
+    }
+  }
+  console.log("Hindi (Roman Hindi) Part:", hindiRomanPart);
 
   return (
     <div className="space-y-4">
-      {englishPart.trim().length > 0 && (
+      {/* English Section */}
+      {englishPart && (
         <Card className="w-full border border-blue-200 shadow-md">
           <CardContent className="p-6">
             <h2 className="text-xl font-semibold mb-4">English</h2>
@@ -150,12 +169,35 @@ const AnswerDisplay: React.FC<AnswerDisplayProps> = ({ answerChunks, isLoading }
           </CardContent>
         </Card>
       )}
-      {hindiPart.trim().length > 0 && (
+
+      {/* Hindi (Devanagari) Section */}
+      {hindiDevanagariPart && (
         <Card className="w-full border border-blue-200 shadow-md">
           <CardContent className="p-6">
-            <h2 className="text-xl font-semibold mb-4">हिंदी</h2>
+            <h2 className="text-xl font-semibold mb-4">हिंदी (देवनागरी)</h2>
             <div className="prose prose-blue max-w-none whitespace-pre-line">
-              {renderContent(hindiPart)}
+              {renderContent(hindiDevanagariPart)}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Hindi (Roman Hindi) Section */}
+      {hindiRomanPart ? (
+        <Card className="w-full border border-blue-200 shadow-md">
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">हिंदी (Roman Hindi)</h2>
+            <div className="prose prose-blue max-w-none whitespace-pre-line">
+              {renderContent(hindiRomanPart)}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="w-full border border-blue-200 shadow-md">
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">हिंदी (Roman Hindi)</h2>
+            <div className="prose prose-blue max-w-none whitespace-pre-line">
+              <span>No Hindi (Roman Hindi) content provided.</span>
             </div>
           </CardContent>
         </Card>

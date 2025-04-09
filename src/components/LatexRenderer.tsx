@@ -7,26 +7,28 @@ interface LatexRendererProps {
 }
 
 const LatexRenderer: React.FC<LatexRendererProps> = ({ content }) => {
-  // Split the content by $ to separate LaTeX expressions
-  const parts = content.split(/(\$.*?\$)/g);
+  // Updated regex to capture newlines using [\s\S]
+  const parts = content.split(/(\$[\s\S]*?\$)/g);
 
   return (
     <>
       {parts.map((part, index) => {
-        // Check if this part is a LaTeX expression
+        // Check if this part is a LaTeX expression enclosed in dollar signs.
         if (part.startsWith('$') && part.endsWith('$')) {
-          const latex = part.slice(1, -1); // Remove the $ symbols
+          // Remove the $ symbols.
+          const latex = part.slice(1, -1);
           
-          // If the LaTeX is on its own line, render as block math
-          if (part.trim() === part && latex.includes('\\')) {
+          // Use block math if the LaTeX string includes a newline character,
+          // which usually indicates a multiline expression.
+          if (latex.includes('\n')) {
             return <BlockMath key={index} math={latex} />;
           }
           
-          // Otherwise render as inline math
+          // Otherwise render as inline math.
           return <InlineMath key={index} math={latex} />;
         }
         
-        // If not LaTeX, just return the text
+        // If not a LaTeX expression, render as plain text.
         return <span key={index}>{part}</span>;
       })}
     </>
