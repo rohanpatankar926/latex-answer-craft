@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -98,4 +99,29 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Styles for proper LaTeX rendering */
+.katex-display {
+  margin: 1.5em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+}
+
+.katex {
+  font-size: 1.1em;
+}
+
+.prose {
+  @apply max-w-none;
+}
+
+.prose p {
+  @apply my-4;
+}
+
+/* Hindi font */
+.font-hindi {
+  font-family: 'Noto Sans Devanagari', sans-serif;
 }
